@@ -1,182 +1,261 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>SchoolManager - Professor</title>
-  <link rel="stylesheet" href="styles.css?v=16.1"/>
+
+<meta charset="UTF-8">
+<title>Professor - Diário de Classe</title>
+
+<style>
+body{
+  font-family:Arial;
+  background:#f4f6f9;
+  padding:20px;
+}
+
+.card{
+  background:#fff;
+  padding:15px;
+  border-radius:8px;
+  margin-bottom:20px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+th,td{
+  border:1px solid #ccc;
+  padding:8px;
+}
+
+button{
+  padding:6px 10px;
+  cursor:pointer;
+}
+</style>
+
 </head>
+
 <body>
-  <div id="hdr"></div>
-  <div class="container grid cols-2">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3 style="margin:0 0 10px">Lançar Nota</h3>
-        <div class="small">Professor só lança na própria matéria.</div>
-      </div>
-      <form id="notaForm" class="grid cols-2">
-        <div><label>Turma</label><select name="turmaId" id="turmaNotaSel"></select></div>
-        <div><label>Disciplina</label><input id="discNota" disabled/></div>
-        <div><label>Aluno</label><select name="alunoId" id="alunoNotaSel"></select></div>
-        <div><label>Avaliação</label><input name="avaliacao" id="avaliacao" required/></div>
-        <div><label>Nota</label><input name="valor" id="valor" type="number" min="0" max="10" step="0.1" required/></div>
-        <button class="btn" type="submit">Lançar</button>
-      </form>
-      <div id="turmaMedia" class="small" style="margin-top:8px">Média da turma: -</div>
-    </div>
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3 style="margin:0 0 10px">Marcar Presença (em lote)</h3>
-        <div class="small">P/F por aluno</div>
-      </div>
-      <form id="presForm" class="grid">
-        <div class="grid cols-5">
-          <div><label>Turma</label><select id="turmaPresSel"></select></div>
-          <div><label>Disciplina</label><input id="discPres" disabled/></div>
-          <div><label>Data</label><input id="dataPres" type="date" required/></div>
-          <div><label>Início</label><input id="horaInicio" type="time"/></div>
-          <div><label>Término</label><input id="horaFim" type="time"/></div>
-        </div>
-        <div id="listaAlunos" class="card" style="max-height:300px;overflow:auto"></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" type="submit">Salvar Presenças</button>
-        </div>
-      </form>
-    </div>
 
-    <div class="card" style="grid-column:1/-1">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3 style="margin:0 0 10px">Boletins</h3>
-        <div class="small">Gere PDF da turma</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:end">
-        <div><label>Turma</label><select id="turmaBoletimSel"></select></div>
-        <div><label>Disciplina (opcional)</label><select id="discBoletimSel"><option value="">Todas</option></select></div>
-        <button class="btn" id="btnBoletimTurma">Boletim da Turma (PDF)</button>
-      </div>
-    </div>
+<h1>Diário do Professor</h1>
 
-    <div class="card" style="grid-column:1/-1">
-      <h3 style="margin:0 0 10px">Últimas Notas & Presenças</h3>
-      <div id="recent"></div>
-    </div>
-  </div>
-  <script src="app.js?v=16.1"></script>
-  <script>
-    App.guard(['prof']); App.mountHeader();
-    const user = App.currentUser();
-    const profDiscId = user.disciplinaId;
-    const discMap = Object.fromEntries(App.disciplinas.list().map(d=>[d.id,d.nome]));
-    document.getElementById('discNota').value = discMap[profDiscId]||'-';
-    document.getElementById('discPres').value = discMap[profDiscId]||'-';
+<!-- ================= LANÇAR PRESENÇA ================= -->
 
-    const allTurmas = App.turmas.list();
-    const visTurmas = (user.profTurmas && user.profTurmas.length) ? allTurmas.filter(t=>user.profTurmas.includes(t.id)) : allTurmas;
+<div class="card">
 
-    const turmaNotaSel = document.getElementById('turmaNotaSel');
-    const turmaPresSel = document.getElementById('turmaPresSel');
-    const turmaBoletimSel = document.getElementById('turmaBoletimSel');
-    [turmaNotaSel,turmaPresSel,turmaBoletimSel].forEach(sel=> sel.innerHTML = visTurmas.map(t=>`<option value="${t.id}">${t.nome}</option>`).join('') );
-    const discBoletimSel = document.getElementById('discBoletimSel');
-    discBoletimSel.innerHTML += Object.entries(discMap).map(([id,n])=>`<option value="${id}">${n}</option>`).join('');
+<h3>Lançar Presença</h3>
 
-    const alunoNotaSel = document.getElementById('alunoNotaSel');
-    function refreshAlunosNota(){
-      const turmaId = turmaNotaSel.value;
-      const alunos = App.alunosByTurma(turmaId);
-      alunoNotaSel.innerHTML = alunos.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-    }
-    // refresh students and update turma average when turma changes
-    function calcMediaTurma(turmaId){
-      const alunos = App.alunosByTurma(turmaId);
-      const medias = alunos.map(a=>App.calcMediaAlunoDisciplina(a.id, profDiscId)).filter(m=>m!==null);
-      if(!medias.length) return null;
-      return Math.round((medias.reduce((s,x)=>s+x,0)/medias.length)*100)/100;
-    }
-    function updateTurmaMedia(){
-      const m = calcMediaTurma(turmaNotaSel.value);
-      document.getElementById('turmaMedia').textContent = 'Média da turma: ' + (m!==null ? m : '-');
-    }
-    function onTurmaNotaChange(){ refreshAlunosNota(); updateTurmaMedia(); }
-    turmaNotaSel.onchange = onTurmaNotaChange; onTurmaNotaChange();
+<input type="date" id="dataAula">
 
-    document.getElementById('notaForm').onsubmit=(e)=>{
-      e.preventDefault();
-      const turmaId = turmaNotaSel.value;
-      const alunoId = alunoNotaSel.value;
-      const avaliacao = document.getElementById('avaliacao').value;
-      const valor = Number(document.getElementById('valor').value);
-      App.notas.create({ profId:user.id, alunoId, turmaId, disciplinaId: profDiscId, avaliacao, valor });
-      e.target.reset(); refreshAlunosNota(); drawRecent();
-      // reset() clears disabled inputs too; restore disciplina name
-      document.getElementById('discNota').value = discMap[profDiscId]||'-';
-      updateTurmaMedia();
-      App.toast('Nota lançada!','ok');
-    };
+<table>
+<thead>
+<tr>
+<th>Aluno</th>
+<th>Status</th>
+</tr>
+</thead>
 
-    const listaAlunosDiv = document.getElementById('listaAlunos');
-    function renderListaAlunos(){
-      const turmaId = turmaPresSel.value;
-      const alunos = App.alunosByTurma(turmaId);
-      if(!alunos.length){ listaAlunosDiv.innerHTML = '<div class="alert">Sem alunos nesta turma.</div>'; return; }
-      listaAlunosDiv.innerHTML = `<table class="table">
-        <tr><th>Aluno</th><th style="width:120px;text-align:center">P</th><th style="width:120px;text-align:center">F</th></tr>
-        ${alunos.map(a=>`
-          <tr>
-            <td>${a.name}</td>
-            <td style="text-align:center"><input type="radio" name="pres_${a.id}" value="P" checked></td>
-            <td style="text-align:center"><input type="radio" name="pres_${a.id}" value="F"></td>
-          </tr>`).join('')}
-      </table>`;
-    }
-    turmaPresSel.onchange = renderListaAlunos; renderListaAlunos();
+<tbody id="listaAlunos"></tbody>
 
-    document.getElementById('presForm').onsubmit=(e)=>{
-      e.preventDefault();
-      const turmaId = turmaPresSel.value;
-      const dataISO = document.getElementById('dataPres').value;
-      if(!dataISO){ App.toast('Informe a data.','warn'); return; }
-      const horaInicio = document.getElementById('horaInicio').value || null;
-      const horaFim = document.getElementById('horaFim').value || null;
-      const alunos = App.alunosByTurma(turmaId);
-      const lista = alunos.map(a=>{
-        const radios = document.getElementsByName('pres_'+a.id);
-        let val='P'; for(const r of radios){ if(r.checked) val=r.value; }
-        return { alunoId:a.id, turmaId, disciplinaId: profDiscId, dataISO, status: val, horaInicio, horaFim };
-      });
-      App.presencas.marcarBatch(lista);
-      App.toast('Presenças salvas!','ok');
-      drawRecent();
-      // clear time inputs after saving
-      try{ document.getElementById('horaInicio').value = ''; document.getElementById('horaFim').value = ''; }catch(e){}
-    };
+</table>
 
-    function drawRecent(){
-      const ns = App.notas.list().slice(-5).reverse();
-      const ps = App.presencas.list().slice(-5).reverse();
-      const mapUser = Object.fromEntries(App.listUsers().map(u=>[u.id,u]));
-      const mapDisc = discMap;
-      document.getElementById('recent').innerHTML = `
-        <div class="grid cols-2">
-          <div><h4>Notas</h4><table class="table"><tr><th>Aluno</th><th>Disciplina</th><th>Aval.</th><th>Nota</th></tr>
-            ${ns.map(n=>`<tr><td>${mapUser[n.alunoId]?.name||'?'}</td><td>${mapDisc[n.disciplinaId]||'?'}</td><td>${n.avaliacao}</td><td>${n.valor}</td></tr>`).join('')||'<tr><td colspan="4">Sem registros.</td></tr>'}
-          </table></div>
-              <div><h4>Presenças</h4><table class="table"><tr><th>Aluno</th><th>Disciplina</th><th>Data</th><th>Início</th><th>Término</th><th>Status</th></tr>
-                ${ps.map(p=>`<tr><td>${mapUser[p.alunoId]?.name||'?'}</td><td>${mapDisc[p.disciplinaId]||'?'}</td><td>${p.dataISO}</td><td>${p.horaInicio||'-'}</td><td>${p.horaFim||'-'}</td><td>${p.status}</td></tr>`).join('')||'<tr><td colspan="6">Sem registros.</td></tr>'}
-              </table></div>
-        </div>`;
-    }
-    drawRecent();
-    // PDF turma
-    document.getElementById('btnBoletimTurma').onclick = ()=>{
-      const turmaId = turmaBoletimSel.value;
-      const did = document.getElementById('discBoletimSel').value || null;
-      App.openBoletimTurmaPrint(turmaId, did);
-    };
-    window.addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });
-  </script>
+<br>
+<button id="salvarPresencas">Salvar Presenças</button>
+
+</div>
+
+
+<!-- ================= PRESENÇAS SALVAS ================= -->
+
+<div class="card">
+
+<h3>Presenças já lançadas</h3>
+
+<table>
+<thead>
+<tr>
+<th>Aluno</th>
+<th>Data</th>
+<th>Status</th>
+<th>Ações</th>
+</tr>
+</thead>
+
+<tbody id="listaPresencas"></tbody>
+
+</table>
+
+</div>
+
+
+<script src="app.js"></script>
+
+<script>
+
+/* ==============================
+   CARREGAR ALUNOS
+==============================*/
+
+const listaAlunos =
+document.getElementById("listaAlunos");
+
+function drawAlunos(){
+
+  const alunos = App.getAlunos();
+
+  listaAlunos.innerHTML="";
+
+  alunos.forEach(a=>{
+
+    const tr=document.createElement("tr");
+
+    tr.innerHTML=`
+      <td>${a.nome}</td>
+
+      <td>
+        <select data-aluno="${a.id}">
+          <option value="P">Presente</option>
+          <option value="F">Falta</option>
+        </select>
+      </td>
+    `;
+
+    listaAlunos.appendChild(tr);
+
+  });
+
+}
+
+
+/* ==============================
+   SALVAR PRESENÇAS
+==============================*/
+
+document.getElementById("salvarPresencas")
+.onclick=function(){
+
+  const data =
+    document.getElementById("dataAula").value;
+
+  if(!data){
+    alert("Escolha a data");
+    return;
+  }
+
+  const selects =
+    document.querySelectorAll("select[data-aluno]");
+
+  selects.forEach(sel=>{
+
+    App.addPresenca({
+      alunoId: sel.dataset.aluno,
+      data: data,
+      status: sel.value
+    });
+
+  });
+
+};
+
+
+/* ==============================
+   LISTA PRESENÇAS SALVAS
+==============================*/
+
+const tabelaPresencas =
+document.getElementById("listaPresencas");
+
+function drawPresencas(){
+
+  const presencas = App.getPresencas();
+  const alunos = App.getAlunos();
+
+  tabelaPresencas.innerHTML="";
+
+  presencas.forEach(p=>{
+
+    const aluno =
+      alunos.find(a=>a.id===p.alunoId);
+
+    const tr=document.createElement("tr");
+
+    tr.innerHTML=`
+      <td>${aluno?.nome || "-"}</td>
+      <td>${p.data}</td>
+      <td>${p.status}</td>
+
+      <td>
+        <button onclick="editarPresenca('${p.id}')">
+          Editar
+        </button>
+
+        <button onclick="excluirPresenca('${p.id}')">
+          Excluir
+        </button>
+      </td>
+    `;
+
+    tabelaPresencas.appendChild(tr);
+
+  });
+
+}
+
+
+/* ==============================
+   EDITAR
+==============================*/
+
+window.editarPresenca=function(id){
+
+  const presenca =
+    App.getPresencas().find(p=>p.id===id);
+
+  const novo =
+    prompt("Digite P ou F",presenca.status);
+
+  if(!novo) return;
+
+  App.updatePresenca(id,{
+    status:novo.toUpperCase()
+  });
+
+};
+
+
+/* ==============================
+   EXCLUIR
+==============================*/
+
+window.excluirPresenca=function(id){
+
+  if(confirm("Excluir registro?")){
+    App.deletePresenca(id);
+  }
+
+};
+
+
+/* ==============================
+   AUTO UPDATE
+==============================*/
+
+window.addEventListener(
+  "app-updated",
+  drawPresencas
+);
+
+
+/* ==============================
+   START
+==============================*/
+
+drawAlunos();
+drawPresencas();
+
+</script>
+
 </body>
 </html>
