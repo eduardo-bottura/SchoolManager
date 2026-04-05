@@ -357,11 +357,10 @@ draw();
 draw();
 
 
-// ⭐ atualização automática entre páginas
-window.addEventListener("storage",()=>draw());
-
-window.addEventListener("pageshow",e=>{
-if(e.persisted) location.reload();
+// atualização automática REAL
+window.addEventListener("schoolmanager_update", ()=>{
+   fillOptions();
+   draw();
 });
 
 </script>
