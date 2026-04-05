@@ -59,14 +59,10 @@
       </div>
     </div>
 
-    
-      <div class="card" style="grid-column:1/-1">
-  <h3 style="margin:0 0 10px">📊 Estatísticas das Notas</h3>
-
-  <canvas id="graficoNotas" height="120"></canvas>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <div class="card" style="grid-column:1/-1">
+      <h3 style="margin:0 0 10px">Últimas Notas & Presenças</h3>
+      <div id="recent"></div>
+    </div>
   </div>
   <script src="app.js?v=16.1"></script>
   <script>
@@ -92,7 +88,7 @@
       const turmaId = turmaNotaSel.value;
       const alunos = App.alunosByTurma(turmaId);
       alunoNotaSel.innerHTML = alunos.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-    }<div class="card" style="grid-column:1/-1">
+    }
     // refresh students and update turma average when turma changes
     function calcMediaTurma(turmaId){
       const alunos = App.alunosByTurma(turmaId);
@@ -173,8 +169,6 @@
               </table></div>
         </div>`;
     }
-
-    atualizarGraficoNotas();
     drawRecent();
     // PDF turma
     document.getElementById('btnBoletimTurma').onclick = ()=>{
@@ -183,59 +177,12 @@
       App.openBoletimTurmaPrint(turmaId, did);
     };
     window.addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });
-  /* ===============================
-   GRAFICO AUTOMÁTICO DE NOTAS
-================================ */
-
-let graficoNotas = null;
-
-function atualizarGraficoNotas(){
-
-  const notas = App.notas.list();
-
-  const contador = {};
-
-  notas.forEach(n=>{
-    const nota = Number(n.valor);
-
-    if(!isNaN(nota)){
-      contador[nota] = (contador[nota] || 0) + 1;
-    }
-  });
-
-  const labels = Object.keys(contador).sort((a,b)=>a-b);
-  const valores = labels.map(n=>contador[n]);
-
-  const canvas = document.getElementById("graficoNotas");
-  if(!canvas) return;
-
-  if(graficoNotas){
-    graficoNotas.destroy();
-  }
-
-  graficoNotas = new Chart(canvas,{
-    type:'bar',
-    data:{
-      labels:labels,
-      datasets:[{
-        label:'Quantidade de alunos por nota',
-        data:valores
-      }]
-    },
-    options:{
-      responsive:true,
-      scales:{
-        y:{
-          beginAtZero:true,
-          ticks:{ precision:0 }
-        }
-      }
-    }
-  });
-
   </script>
 </body>
 </html>
 
+</script>
+
 </body>
 </html>
+
