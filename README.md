@@ -1,2 +1,2 @@
-# SchoolManager
-Sistema de Controle de Notas e Frequência de Alunos
+# GestaoDeEscolas
+Programa para gestão de escolas para projeto da faculdade
