@@ -214,23 +214,18 @@ ${recessos.map(r=>
 
 <div style="margin-top:12px">
 <button class="btn" id="btnCalendarioPDF">
-📅 Baixar Calendário Letivo 2026
+📅 Abrir Calendário Letivo 2026
 </button>
 </div>
 `;
 }
 
 
-// ================= DOWNLOAD =================
+// ================= ABRIR PDF =================
 document.addEventListener("click",e=>{
 if(e.target.id==="btnCalendarioPDF"){
 
-const link=document.createElement("a");
-link.href="./CalendarioLetivo2026.pdf";
-link.download="Calendario_Letivo_2026.pdf";
-document.body.appendChild(link);
-link.click();
-document.body.removeChild(link);
+window.open("./CalendarioLetivo2026.pdf","_blank");
 
 }
 });
