@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<title>SchoolManager - Usuários</title>
+
+<link rel="stylesheet" href="styles.css?v=20"/>
+
+</head>
+
+<body>
+
+<div id="hdr"></div>
+
+<div class="container">
+
+<!-- ================= FORM ================= -->
+<div class="card">
+
+<h3>Cadastrar / Editar Usuário</h3>
+
+<form id="userForm" class="grid cols-3">
+
+<div>
+<label>Nome</label>
+<input name="name" required>
+</div>
+
+<div>
+<label>E-mail</label>
+<input name="email" type="email" required>
+</div>
+
+<div>
+<label>Senha</label>
+<input name="password" required>
+</div>
+
+<div>
+<label>Perfil</label>
+
+<select name="role" id="roleSel">
+<option value="aluno">Aluno</option>
+<option value="prof">Professor</option>
+<option value="admin">Administrador</option>
+</select>
+
+<input type="hidden" id="editingUserId">
+
+</div>
+
+<div id="turmaBox">
+<label>Turma do Aluno</label>
+<select name="turmaId" id="turmaSel"></select>
+</div>
+
+<div id="discBox" style="display:none">
+<label>Disciplina do Professor</label>
+<select name="disciplinaId" id="discSel"></select>
+</div>
+
+<div id="turmasProfBox" style="display:none">
+<label>Turmas do Professor</label>
+<select id="profTurmasSel" multiple></select>
+</div>
+
+<button class="btn" type="submit">Salvar</button>
+
+</form>
+
+</div>
+
+
+<!-- ================= LISTA ================= -->
+<div class="card">
+
+<h3>Usuários Cadastrados</h3>
+
+<table class="table" id="userTable"></table>
+
+</div>
+
+</div>
+
+<script src="app.js?v=20"></script>
+
+<script>
+
+App.guard(['admin']);
+App.mountHeader();
+
+const table = document.getElementById("userTable");
+const form = document.getElementById("userForm");
+
+const roleSel = document.getElementById("roleSel");
+
+const turmaBox = document.getElementById("turmaBox");
+const discBox = document.getElementById("discBox");
+const profTurmasBox = document.getElementById("turmasProfBox");
+
+const turmaSel = document.getElementById("turmaSel");
+const discSel = document.getElementById("discSel");
+const profTurmasSel = document.getElementById("profTurmasSel");
+
+const editingUserId = document.getElementById("editingUserId");
+
+
+// ================= OPTIONS =================
+function fillOptions(){
+
+const turmas = App.turmas.list();
+
+turmaSel.innerHTML =
+turmas.map(t=>`
+<option value="${t.id}">
+${t.nome} - ${t.turno}
+</option>`).join("");
+
+profTurmasSel.innerHTML =
+turmas.map(t=>`
+<option value="${t.id}">
+${t.nome} - ${t.turno}
+</option>`).join("");
+
+discSel.innerHTML =
+App.disciplinas.list()
+.map(d=>`<option value="${d.id}">${d.nome}</option>`)
+.join("");
+
+}
+
+fillOptions();
+
+
+// ================= PERFIL =================
+roleSel.onchange = ()=>{
+
+turmaBox.style.display =
+roleSel.value==="aluno"?"block":"none";
+
+discBox.style.display =
+roleSel.value==="prof"?"block":"none";
+
+profTurmasBox.style.display =
+roleSel.value==="prof"?"block":"none";
+
+};
+
+
+// ================= LISTAGEM =================
+function draw(){
+
+const discMap =
+Object.fromEntries(App.disciplinas.list().map(d=>[d.id,d.nome]));
+
+const turmaMap =
+Object.fromEntries(App.turmas.list().map(t=>[t.id,t.nome]));
+
+const rows = App.listUsers().map(u=>{
+
+let extra="";
+
+if(u.role==="aluno"){
+const turmaId = App.getTurmaOfAluno(u.id);
+extra = turmaId ? ` • Turma: ${turmaMap[turmaId]||"-"}`:"";
+}
+
+if(u.role==="prof"){
+
+const turmas =
+(u.profTurmas||[])
+.map(id=>turmaMap[id]||id).join(", ")||"-";
+
+extra =
+` • Matéria: ${discMap[u.disciplinaId]||"-"}
+ • Turmas: ${turmas}`;
+}
+
+return `
+<tr>
+
+<td>
+${u.name}
+<div class="small">${u.email}</div>
+</td>
+
+<td>${u.role}${extra}</td>
+
+<td>
+<input class="pw" data-id="${u.id}" value="${u.password}">
+</td>
+
+<td>
+
+<button class="btn edit" data-id="${u.id}">
+Editar
+</button>
+
+<button class="btn ghost del" data-id="${u.id}">
+Excluir
+</button>
+
+</td>
+
+</tr>`;
+}).join("");
+
+table.innerHTML = `
+<tr>
+<th>Nome</th>
+<th>Perfil</th>
+<th>Senha</th>
+<th>Ações</th>
+</tr>
+${rows}
+`;
+
+
+// excluir
+document.querySelectorAll(".del").forEach(b=>
+b.onclick=()=>{
+App.deleteUser(b.dataset.id);
+App.toast("Usuário excluído","ok");
+draw();
+});
+
+// alterar senha
+document.querySelectorAll(".pw").forEach(i=>
+i.onchange=()=>{
+App.updateUser(i.dataset.id,{password:i.value});
+App.toast("Senha alterada","ok");
+});
+
+// editar
+document.querySelectorAll(".edit").forEach(b=>
+b.onclick=()=>loadUserToForm(b.dataset.id));
+
+}
+
+
+// ================= EDITAR =================
+function loadUserToForm(id){
+
+const user =
+App.listUsers().find(u=>u.id===id);
+
+editingUserId.value=id;
+
+form.name.value=user.name;
+form.email.value=user.email;
+form.password.value=user.password;
+
+roleSel.value=user.role;
+roleSel.onchange();
+
+if(user.role==="aluno"){
+turmaSel.value=
+App.getTurmaOfAluno(id)||"";
+}
+
+if(user.role==="prof"){
+
+discSel.value=user.disciplinaId||"";
+
+Array.from(profTurmasSel.options)
+.forEach(o=>{
+o.selected =
+(user.profTurmas||[]).includes(o.value);
+});
+
+}
+
+App.toast("Editando usuário","warn");
+
+}
+
+
+// ================= SALVAR =================
+form.onsubmit = e=>{
+
+e.preventDefault();
+
+const dataObj =
+Object.fromEntries(new FormData(form).entries());
+
+const id = editingUserId.value;
+
+
+// professor
+if(roleSel.value==="prof"){
+
+dataObj.profTurmas =
+Array.from(profTurmasSel.selectedOptions)
+.map(o=>o.value);
+
+if(!dataObj.disciplinaId){
+App.toast("Selecione a disciplina","warn");
+return;
+}
+
+}
+
+
+// aluno
+if(roleSel.value==="aluno" && !dataObj.turmaId){
+App.toast("Selecione a turma","warn");
+return;
+}
+
+
+// editar
+if(id){
+
+App.updateUser(id,dataObj);
+
+if(dataObj.role==="aluno"){
+App.setAlunoTurma(id,dataObj.turmaId);
+}
+
+App.toast("Usuário atualizado","ok");
+
+}else{
+
+App.createUser(dataObj);
+
+// pega último usuário criado
+const usuarios = App.listUsers();
+const novoUsuario = usuarios[usuarios.length-1];
+
+if(dataObj.role==="aluno"){
+App.setAlunoTurma(novoUsuario.id,dataObj.turmaId);
+}
+
+App.toast("Usuário criado","ok");
+
+}
+
+
+// ⭐ atualização imediata
+form.reset();
+editingUserId.value="";
+fillOptions();
+
+setTimeout(()=>{
+draw();
+},0);
+
+};
+
+draw();
+
+
+// atualização automática REAL
+window.addEventListener("schoolmanager_update", ()=>{
+   fillOptions();
+   draw();
+});
+
+</script>
+
+</body>
+</html>
