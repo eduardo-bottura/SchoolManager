@@ -26,10 +26,6 @@
         <button class="btn" type="submit">Lançar</button>
       </form>
       <div id="turmaMedia" class="small" style="margin-top:8px">Média da turma: -</div>
-      <div style="margin-top:14px">
-        <div class="small" style="margin-bottom:6px;font-weight:600">Distribuição das notas da turma</div>
-        <canvas id="graficoNotasTurma" height="180" style="width:100%;max-width:100%;border:1px solid #e5e7eb;border-radius:10px;background:#fff"></canvas>
-      </div>
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -63,10 +59,14 @@
       </div>
     </div>
 
-    <div class="card" style="grid-column:1/-1">
-      <h3 style="margin:0 0 10px">Últimas Notas & Presenças</h3>
-      <div id="recent"></div>
-    </div>
+    
+      <div class="card" style="grid-column:1/-1">
+  <h3 style="margin:0 0 10px">📊 Estatísticas das Notas</h3>
+
+  <canvas id="graficoNotas" height="120"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </div>
   <script src="app.js?v=16.1"></script>
   <script>
@@ -92,7 +92,7 @@
       const turmaId = turmaNotaSel.value;
       const alunos = App.alunosByTurma(turmaId);
       alunoNotaSel.innerHTML = alunos.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-    }
+    }<div class="card" style="grid-column:1/-1">
     // refresh students and update turma average when turma changes
     function calcMediaTurma(turmaId){
       const alunos = App.alunosByTurma(turmaId);
@@ -104,67 +104,7 @@
       const m = calcMediaTurma(turmaNotaSel.value);
       document.getElementById('turmaMedia').textContent = 'Média da turma: ' + (m!==null ? m : '-');
     }
-    function drawGraficoNotasTurma(){
-      const canvas = document.getElementById('graficoNotasTurma');
-      if(!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const turmaId = turmaNotaSel.value;
-      const alunos = App.alunosByTurma(turmaId);
-      const buckets = Array.from({length:11}, ()=>0);
-      alunos.forEach(a=>{
-        const media = App.calcMediaAlunoDisciplina(a.id, profDiscId);
-        if(media===null || Number.isNaN(media)) return;
-        const nota = Math.max(0, Math.min(10, Math.round(media)));
-        buckets[nota]++;
-      });
-
-      const dpr = window.devicePixelRatio || 1;
-      const cssWidth = canvas.clientWidth || 600;
-      const cssHeight = canvas.height || 180;
-      canvas.width = cssWidth * dpr;
-      canvas.height = cssHeight * dpr;
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-      ctx.clearRect(0,0,cssWidth,cssHeight);
-
-      const pad = { top: 16, right: 10, bottom: 28, left: 26 };
-      const w = cssWidth - pad.left - pad.right;
-      const h = cssHeight - pad.top - pad.bottom;
-      const max = Math.max(1, ...buckets);
-      const gap = 6;
-      const barW = (w - gap*(buckets.length-1)) / buckets.length;
-
-      ctx.strokeStyle = '#d1d5db';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(pad.left, pad.top);
-      ctx.lineTo(pad.left, pad.top + h);
-      ctx.lineTo(pad.left + w, pad.top + h);
-      ctx.stroke();
-
-      ctx.fillStyle = '#111827';
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'center';
-
-      buckets.forEach((qtd, nota)=>{
-        const barH = max ? (qtd / max) * (h - 10) : 0;
-        const x = pad.left + nota * (barW + gap);
-        const y = pad.top + h - barH;
-        ctx.fillStyle = '#2563eb';
-        ctx.fillRect(x, y, barW, barH);
-        ctx.fillStyle = '#111827';
-        ctx.fillText(String(nota), x + barW/2, pad.top + h + 16);
-        if(qtd > 0){
-          ctx.fillText(String(qtd), x + barW/2, y - 6);
-        }
-      });
-
-      if(!buckets.some(v=>v>0)){
-        ctx.fillStyle = '#6b7280';
-        ctx.textAlign = 'center';
-        ctx.fillText('Nenhuma nota lançada para esta turma.', cssWidth/2, pad.top + h/2);
-      }
-    }
-    function onTurmaNotaChange(){ refreshAlunosNota(); updateTurmaMedia(); drawGraficoNotasTurma(); }
+    function onTurmaNotaChange(){ refreshAlunosNota(); updateTurmaMedia(); }
     turmaNotaSel.onchange = onTurmaNotaChange; onTurmaNotaChange();
 
     document.getElementById('notaForm').onsubmit=(e)=>{
@@ -178,7 +118,6 @@
       // reset() clears disabled inputs too; restore disciplina name
       document.getElementById('discNota').value = discMap[profDiscId]||'-';
       updateTurmaMedia();
-      drawGraficoNotasTurma();
       App.toast('Nota lançada!','ok');
     };
 
@@ -234,6 +173,8 @@
               </table></div>
         </div>`;
     }
+
+    atualizarGraficoNotas();
     drawRecent();
     // PDF turma
     document.getElementById('btnBoletimTurma').onclick = ()=>{
@@ -241,8 +182,57 @@
       const did = document.getElementById('discBoletimSel').value || null;
       App.openBoletimTurmaPrint(turmaId, did);
     };
-    window.addEventListener('resize', drawGraficoNotasTurma);
     window.addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });
+  /* ===============================
+   GRAFICO AUTOMÁTICO DE NOTAS
+================================ */
+
+let graficoNotas = null;
+
+function atualizarGraficoNotas(){
+
+  const notas = App.notas.list();
+
+  const contador = {};
+
+  notas.forEach(n=>{
+    const nota = Number(n.valor);
+
+    if(!isNaN(nota)){
+      contador[nota] = (contador[nota] || 0) + 1;
+    }
+  });
+
+  const labels = Object.keys(contador).sort((a,b)=>a-b);
+  const valores = labels.map(n=>contador[n]);
+
+  const canvas = document.getElementById("graficoNotas");
+  if(!canvas) return;
+
+  if(graficoNotas){
+    graficoNotas.destroy();
+  }
+
+  graficoNotas = new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:labels,
+      datasets:[{
+        label:'Quantidade de alunos por nota',
+        data:valores
+      }]
+    },
+    options:{
+      responsive:true,
+      scales:{
+        y:{
+          beginAtZero:true,
+          ticks:{ precision:0 }
+        }
+      }
+    }
+  });
+
   </script>
 </body>
 </html>
